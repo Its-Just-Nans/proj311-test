@@ -1,6 +1,7 @@
 use eframe::egui;
 use ewebsock::{WsEvent, WsMessage};
 use std::cell::RefCell;
+use std::fmt::format;
 use std::rc::Rc;
 
 #[derive(Default)]
@@ -41,12 +42,19 @@ impl super::PanelView for MessageBox {
         egui::ScrollArea::vertical()
             .stick_to_bottom(true)
             .show(ui, |ui| {
-                for event in self.events.borrow().iter() {
-                    let text = match event {
-                        WsEvent::Message(WsMessage::Text(text)) => text,
-                        _ => continue,
-                    };
-                    ui.label(text);
+                let borrowed = self.events.borrow();
+                ui.horizontal(|ui| {
+                    ui.label(format!("Received events: {}", borrowed.len()));
+                });
+
+                // display last msg
+                let msg = match borrowed.len() {
+                    0 => None,
+                    n => Some(&borrowed[n - 1]),
+                };
+                if let Some(WsEvent::Message(WsMessage::Text(text))) = msg {
+                    log::info!("last: {}", text);
+                    // ui.label(text);
                 }
             });
     }
