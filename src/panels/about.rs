@@ -1,26 +1,29 @@
 use eframe::egui;
 
 #[derive(Default)]
-pub struct ConnectionPanel {}
+pub struct AboutPanel {}
 
-impl super::Demo for ConnectionPanel {
+impl super::PanelController for AboutPanel {
     fn name(&self) -> &'static str {
-        "About egui"
+        "About"
+    }
+    fn window_title(&self) -> &'static str {
+        "About"
     }
 
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
-        egui::Window::new(self.name())
+        egui::Window::new(self.window_title())
             .default_width(320.0)
             .default_height(480.0)
             .open(open)
             .show(ctx, |ui| {
-                use super::View as _;
+                use super::PanelView as _;
                 self.ui(ui);
             });
     }
 }
 
-impl super::View for ConnectionPanel {
+impl super::PanelView for AboutPanel {
     fn ui(&mut self, ui: &mut egui::Ui) {
         use egui::special_emojis::{OS_APPLE, OS_LINUX, OS_WINDOWS};
 
@@ -40,10 +43,10 @@ impl super::View for ConnectionPanel {
         ui.add_space(12.0);
 
         ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
-            ui.label("egui development is sponsored by ");
-            ui.hyperlink_to("Rerun.io", "https://www.rerun.io/");
-            ui.label(", a startup building an SDK for visualizing streams of multimodal data.");
+            ui.hyperlink_to(
+                "notes.rezel.net",
+                "https://notes.rezel.net/22PBCZhXTvGsG5ipptTvwQ",
+            );
         });
 
         ui.add_space(12.0);

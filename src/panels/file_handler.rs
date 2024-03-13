@@ -64,24 +64,27 @@ impl FileHandler {
     }
 }
 
-impl super::Demo for FileHandler {
+impl super::PanelController for FileHandler {
     fn name(&self) -> &'static str {
+        "File Handler"
+    }
+    fn window_title(&self) -> &'static str {
         "File Handler"
     }
 
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
-        egui::Window::new(self.name())
+        egui::Window::new(self.window_title())
             .default_width(320.0)
             .default_height(480.0)
             .open(open)
             .show(ctx, |ui| {
-                use super::View as _;
+                use super::PanelView as _;
                 self.ui(ui);
             });
     }
 }
 
-impl super::View for FileHandler {
+impl super::PanelView for FileHandler {
     fn ui(&mut self, ui: &mut egui::Ui) {
         if ui.button("Open file…").clicked() {
             self.handle_dialog();
