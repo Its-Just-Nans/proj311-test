@@ -1,9 +1,12 @@
 use eframe::egui::{self};
-use ewebsock::{WsEvent, WsMessage, WsReceiver, WsSender};
-use std::collections::BTreeSet;
+use ewebsock::{WsEvent, WsReceiver, WsSender};
+use std::rc::Rc;
+use std::{cell::RefCell, collections::BTreeSet};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
-use crate::panel::{ConnectionPanel, Demo, FileHandler, MessageBox};
+use crate::panels::{
+    AboutPanel, FileHandler, LogicalChannels, MessageBox, PanelController, SocketManager,
+};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -33,7 +36,7 @@ impl ExampleApp {
 impl Default for ExampleApp {
     fn default() -> Self {
         Self {
-            url: "ws://137.194.194.51:9000".to_owned(),
+            url: "ws://137.194.194.51:9001".to_owned(),
             error: Default::default(),
             frontend: None,
         }
@@ -50,6 +53,9 @@ impl eframe::App for ExampleApp {
                     if ui.button("Upload a file").clicked() {
                         // TODO open file dialog
                     }
+                    if ui.button("Organize windows").clicked() {
+                        ui.ctx().memory_mut(|mem| mem.reset_areas());
+                    }
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
@@ -65,9 +71,6 @@ impl eframe::App for ExampleApp {
                                 one_window.name(),
                                 is_open,
                             );
-                        }
-                        if ui.button("Organize windows").clicked() {
-                            ui.ctx().memory_mut(|mem| mem.reset_areas());
                         }
                     });
                 }
@@ -104,13 +107,7 @@ impl eframe::App for ExampleApp {
         if let Some(frontend) = &mut self.frontend {
             frontend.ui(ctx);
         } else {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        ui.label("Connect to WebScoket to start");
-                    })
-                })
-            });
+            egui::CentralPanel::default().show(ctx, |ui| ui.horizontal(|ui| ui.vertical(|_ui| {})));
         }
     }
 }
@@ -135,12 +132,11 @@ impl ExampleApp {
 }
 
 struct FrontEnd {
-    ws_sender: WsSender,
-    ws_receiver: WsReceiver,
-    events: Vec<WsEvent>,
-    text_to_send: String,
+    ws_sender: Rc<RefCell<WsSender>>,
+    ws_receiver: Rc<RefCell<WsReceiver>>,
+    events: Rc<RefCell<Vec<WsEvent>>>,
     pub open_windows: BTreeSet<String>,
-    pub windows: Vec<Box<dyn Demo>>,
+    pub windows: Vec<Box<dyn PanelController>>,
 }
 
 fn set_open(open: &mut BTreeSet<String>, key: &'static str, is_open: bool) {
@@ -155,41 +151,35 @@ fn set_open(open: &mut BTreeSet<String>, key: &'static str, is_open: bool) {
 
 impl FrontEnd {
     fn new(ws_sender: WsSender, ws_receiver: WsReceiver) -> Self {
+        let ref_ws_sender = Rc::new(RefCell::new(ws_sender));
+        let ref_ws_receiver = Rc::new(RefCell::new(ws_receiver));
+        let ref_events = Rc::new(RefCell::new(Vec::new()));
+        let mb = MessageBox::new(Rc::clone(&ref_events));
+        let sm = SocketManager::new(Rc::clone(&ref_ws_sender));
         Self {
-            ws_sender,
-            ws_receiver,
-            events: Default::default(),
-            text_to_send: Default::default(),
+            ws_sender: ref_ws_sender,
+            ws_receiver: ref_ws_receiver,
+            events: ref_events,
             open_windows: BTreeSet::new(),
             windows: vec![
-                Box::<ConnectionPanel>::default(),
-                Box::<MessageBox>::default(),
+                Box::<AboutPanel>::default(),
+                Box::<MessageBox>::new(mb),
                 Box::<FileHandler>::default(),
+                Box::<LogicalChannels>::default(),
+                Box::<SocketManager>::new(sm),
             ],
         }
     }
 
     fn ui(&mut self, ctx: &egui::Context) {
-        while let Some(event) = self.ws_receiver.try_recv() {
-            self.events.push(event);
+        while let Some(event) = self.ws_receiver.borrow_mut().try_recv() {
+            self.events.borrow_mut().push(event);
         }
         for one_window in self.windows.iter_mut() {
             let mut is_open: bool = self.open_windows.contains(one_window.name());
             one_window.show(ctx, &mut is_open);
             set_open(&mut self.open_windows, one_window.name(), is_open);
         }
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Message to send:");
-                if ui.text_edit_singleline(&mut self.text_to_send).lost_focus()
-                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                {
-                    self.ws_sender
-                        .send(WsMessage::Text(std::mem::take(&mut self.text_to_send)));
-                }
-            });
-
-            ui.separator();
-        });
+        egui::CentralPanel::default().show(ctx, |_ui| {});
     }
 }

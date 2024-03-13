@@ -1,3 +1,3 @@
 mod app;
-pub mod panel;
+pub mod panels;
 pub use app::ExampleApp;

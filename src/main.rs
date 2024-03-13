@@ -6,7 +6,7 @@
 fn main() -> eframe::Result<()> {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
-    let app = proj311::ExampleApp::default();
+    let app = my_project::ExampleApp::default();
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([400.0, 300.0])
@@ -33,7 +33,7 @@ fn main() {
             .start(
                 "the_canvas_id", // hardcode it
                 web_options,
-                Box::new(|cc| Box::new(proj311::ExampleApp::new(cc))),
+                Box::new(|cc| Box::new(my_project::ExampleApp::new(cc))),
             )
             .await
             .expect("failed to start eframe");

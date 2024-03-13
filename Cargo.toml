@@ -1,16 +1,12 @@
 [package]
-name = "proj311"
+name = "my_project"
 version = "0.1.0"
 authors = [""]
 edition = "2021"
-rust-version = "1.72"
+rust-version = "1.75"
 license = "MIT"
 include = ["LICENSE", "**/*.rs", "Cargo.toml"]
 publish = false
-
-
-[lib]
-crate-type = ["cdylib", "rlib"]
 
 
 [features]
@@ -22,8 +18,8 @@ tokio = ["ewebsock/tokio", "dep:tokio"]
 
 [dependencies]
 ewebsock = { version = "0.5.0", features = ["tls"] }
-
-eframe = { version = "0.24.1", default-features = true, features = [
+egui = "0.26.0"
+eframe = { version = "0.26.0", default-features = true, features = [
     "accesskit",     # Make egui comptaible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
@@ -32,13 +28,12 @@ eframe = { version = "0.24.1", default-features = true, features = [
 ] }
 log = "0.4"
 serde_json = "1.0.113"
-env_logger = "0.10"
+env_logger = "0.11.3"
 serde = { version = "1.0.197", features = ["derive"] }
 rfd = "0.14.0"
-poll-promise = { version = "0.3.0" }
+poll-promise = { version = "0.3.0", features = ["web"] }
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-env_logger = "0.10"
 tokio = { version = "1.16", optional = true, features = [
     "macros",
     "rt-multi-thread",
@@ -47,4 +42,3 @@ tokio = { version = "1.16", optional = true, features = [
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4"
-poll-promise = { version = "0.3.0", features = ["web"] }

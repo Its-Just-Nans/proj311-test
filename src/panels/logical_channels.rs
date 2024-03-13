@@ -1,5 +1,5 @@
 use eframe::egui;
-use ewebsock::{WsEvent, WsMessage};
+use ewebsock::WsEvent;
 
 #[derive(Default)]
 pub struct LogicalChannels {
@@ -15,24 +15,27 @@ impl LogicalChannels {
     }
 }
 
-impl super::Demo for LogicalChannels {
+impl super::PanelController for LogicalChannels {
     fn name(&self) -> &'static str {
+        "Canaux logiques"
+    }
+    fn window_title(&self) -> &'static str {
         "Téléphone - Canaux logiques (couche 3)"
     }
 
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
-        egui::Window::new(self.name())
+        egui::Window::new(self.window_title())
             .default_width(320.0)
             .default_height(480.0)
             .open(open)
             .show(ctx, |ui| {
-                use super::View as _;
+                use super::PanelView as _;
                 self.ui(ui);
             });
     }
 }
 
-impl super::View for LogicalChannels {
+impl super::PanelView for LogicalChannels {
     fn ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("Received events:");
         ui.label("yolo");
