@@ -1,5 +1,5 @@
 use eframe::egui::{self};
-use ewebsock::{WsEvent, WsReceiver, WsSender};
+use ewebsock::{WsEvent, WsMessage, WsReceiver, WsSender};
 use std::rc::Rc;
 use std::{cell::RefCell, collections::BTreeSet};
 
@@ -7,6 +7,7 @@ use std::{cell::RefCell, collections::BTreeSet};
 use crate::panels::{
     AboutPanel, FileHandler, LogicalChannels, MessageBox, PanelController, SocketManager,
 };
+use crate::{Data, WebSocketLog};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -16,6 +17,7 @@ pub struct ExampleApp {
     pub error: String,
     #[serde(skip)]
     frontend: Option<FrontEnd>,
+    file_upload: Option<FileHandler>,
 }
 
 impl ExampleApp {
@@ -39,6 +41,7 @@ impl Default for ExampleApp {
             url: "ws://137.194.194.51:9001".to_owned(),
             error: Default::default(),
             frontend: None,
+            file_upload: None,
         }
     }
 }
@@ -52,27 +55,40 @@ impl eframe::App for ExampleApp {
                 ui.menu_button("File", |ui| {
                     if ui.button("Upload a file").clicked() {
                         // TODO open file dialog
+                        if self.file_upload.is_none() {
+                            self.file_upload = Some(FileHandler::new());
+                        } else {
+                            self.file_upload = None;
+                        }
                     }
                     if ui.button("Organize windows").clicked() {
                         ui.ctx().memory_mut(|mem| mem.reset_areas());
                     }
-                    if ui.button("Quit").clicked() {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        if ui.button("Quit").clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
                     }
                 });
                 if let Some(current_frontend) = &mut self.frontend {
-                    ui.menu_button("Windows", |ui| {
-                        for one_window in current_frontend.windows.iter_mut() {
-                            let mut is_open: bool =
-                                current_frontend.open_windows.contains(one_window.name());
-                            ui.checkbox(&mut is_open, one_window.name());
-                            set_open(
-                                &mut current_frontend.open_windows,
-                                one_window.name(),
-                                is_open,
-                            );
-                        }
-                    });
+                    if current_frontend.connected {
+                        ui.menu_button("Windows", |ui| {
+                            for one_window in current_frontend.windows.iter_mut() {
+                                let mut is_open: bool = current_frontend
+                                    .data
+                                    .borrow()
+                                    .open_windows
+                                    .contains(one_window.name());
+                                ui.checkbox(&mut is_open, one_window.name());
+                                set_open(
+                                    &mut current_frontend.data.borrow_mut().open_windows,
+                                    one_window.name(),
+                                    is_open,
+                                );
+                            }
+                        });
+                    }
                 }
             });
         });
@@ -80,16 +96,18 @@ impl eframe::App for ExampleApp {
         egui::TopBottomPanel::top("server").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("URL:");
-                if ui.text_edit_singleline(&mut self.url).lost_focus()
-                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                {
-                    self.connect(ctx.clone());
-                }
                 if self.frontend.is_some() {
-                    // its is connected
+                    ui.label(&self.url);
                     if ui.button("Close").clicked() {
                         // TODO close connection
                         self.frontend = None;
+                    }
+                } else {
+                    if (ui.text_edit_singleline(&mut self.url).lost_focus()
+                        && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+                        || ui.button("Connect").clicked()
+                    {
+                        self.connect(ctx.clone());
                     }
                 }
             });
@@ -108,6 +126,15 @@ impl eframe::App for ExampleApp {
             frontend.ui(ctx);
         } else {
             egui::CentralPanel::default().show(ctx, |ui| ui.horizontal(|ui| ui.vertical(|_ui| {})));
+        }
+        if let Some(fu) = &mut self.file_upload {
+            fu.show(ctx, &mut true);
+            if let Ok(result) = fu.get_result() {
+                log::info!("File upload result: {:?}", result);
+                // create fake websocket handler
+                // self.frontend = Some(FrontEnd::new(ws_sender, ws_receiver));
+                self.file_upload = None;
+            }
         }
     }
 }
@@ -132,11 +159,12 @@ impl ExampleApp {
 }
 
 struct FrontEnd {
-    ws_sender: Rc<RefCell<WsSender>>,
     ws_receiver: Rc<RefCell<WsReceiver>>,
-    events: Rc<RefCell<Vec<WsEvent>>>,
-    pub open_windows: BTreeSet<String>,
     pub windows: Vec<Box<dyn PanelController>>,
+    pub data: Rc<RefCell<Data>>,
+    pub connected: bool,
+    pub error: bool,
+    pub error_str: String,
 }
 
 fn set_open(open: &mut BTreeSet<String>, key: &'static str, is_open: bool) {
@@ -151,35 +179,93 @@ fn set_open(open: &mut BTreeSet<String>, key: &'static str, is_open: bool) {
 
 impl FrontEnd {
     fn new(ws_sender: WsSender, ws_receiver: WsReceiver) -> Self {
-        let ref_ws_sender = Rc::new(RefCell::new(ws_sender));
         let ref_ws_receiver = Rc::new(RefCell::new(ws_receiver));
-        let ref_events = Rc::new(RefCell::new(Vec::new()));
-        let mb = MessageBox::new(Rc::clone(&ref_events));
-        let sm = SocketManager::new(Rc::clone(&ref_ws_sender));
-        Self {
-            ws_sender: ref_ws_sender,
-            ws_receiver: ref_ws_receiver,
-            events: ref_events,
+
+        let data = Data {
+            ws_sender: ws_sender,
+            events: Vec::new(),
+            current_index: 0,
             open_windows: BTreeSet::new(),
-            windows: vec![
-                Box::<AboutPanel>::default(),
-                Box::<MessageBox>::new(mb),
-                Box::<FileHandler>::default(),
-                Box::<LogicalChannels>::default(),
-                Box::<SocketManager>::new(sm),
-            ],
+        };
+        let ref_data = Rc::new(RefCell::new(data));
+        let mb = MessageBox::new(Rc::clone(&ref_data));
+        let sm = SocketManager::new(Rc::clone(&ref_data));
+        let wins: Vec<Box<dyn PanelController>> = vec![
+            Box::<AboutPanel>::default(),
+            Box::<MessageBox>::new(mb),
+            Box::<LogicalChannels>::default(),
+            Box::<SocketManager>::new(sm),
+        ];
+        for one_box in wins.iter() {
+            ref_data
+                .borrow_mut()
+                .open_windows
+                .insert(one_box.name().to_owned());
+        }
+        Self {
+            data: ref_data,
+            ws_receiver: ref_ws_receiver,
+            windows: wins,
+            connected: false,
+            error: false,
+            error_str: "".to_string(),
         }
     }
 
     fn ui(&mut self, ctx: &egui::Context) {
         while let Some(event) = self.ws_receiver.borrow_mut().try_recv() {
-            self.events.borrow_mut().push(event);
+            match event {
+                WsEvent::Message(msg) => match msg {
+                    WsMessage::Text(event_text) => {
+                        let decoded: Result<WebSocketLog, serde_json::Error> =
+                            serde_json::from_str(&event_text);
+                        if let Ok(decoded) = decoded {
+                            self.data.borrow_mut().events.extend(decoded.logs);
+                        }
+                    }
+                    WsMessage::Unknown(str_error) => {
+                        self.error = true;
+                        log::error!("Unknown message: {:?}", str_error);
+                        self.error_str = str_error;
+                    }
+                    WsMessage::Binary(bin) => {
+                        self.error = true;
+                        self.error_str = format!("{:?}", bin);
+                    }
+                    _ => {
+                        self.error = true;
+                        self.error_str = "Received Ping-Pong".to_string();
+                    }
+                },
+                WsEvent::Opened => {
+                    self.connected = true;
+                }
+                WsEvent::Closed => {
+                    self.connected = false;
+                }
+                WsEvent::Error(str_err) => {
+                    self.connected = false;
+                    self.error = true;
+                    log::error!("Unknown message: {:?}", str_err);
+                    self.error_str = str_err;
+                }
+            }
         }
-        for one_window in self.windows.iter_mut() {
-            let mut is_open: bool = self.open_windows.contains(one_window.name());
-            one_window.show(ctx, &mut is_open);
-            set_open(&mut self.open_windows, one_window.name(), is_open);
+        if self.connected {
+            for one_window in self.windows.iter_mut() {
+                let mut is_open: bool = self.data.borrow().open_windows.contains(one_window.name());
+                one_window.show(ctx, &mut is_open);
+                set_open(
+                    &mut self.data.borrow_mut().open_windows,
+                    one_window.name(),
+                    is_open,
+                );
+            }
+            egui::CentralPanel::default().show(ctx, |_ui| {});
+        } else {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.label("Not connected");
+            });
         }
-        egui::CentralPanel::default().show(ctx, |_ui| {});
     }
 }
