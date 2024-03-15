@@ -1,20 +1,30 @@
+use crate::Data;
 use eframe::egui;
-use ewebsock::{WsMessage, WsSender};
+use ewebsock::WsMessage;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 pub struct SocketManager {
-    ws_sender: Rc<RefCell<WsSender>>,
-    text_to_send: String,
+    data: Rc<RefCell<Data>>,
     msg_id: u64,
 }
 
 impl SocketManager {
-    pub fn new(ws_sender: Rc<RefCell<WsSender>>) -> Self {
+    pub fn new(ws_sender: Rc<RefCell<Data>>) -> Self {
         Self {
-            ws_sender: ws_sender,
-            text_to_send: Default::default(),
+            data: ws_sender,
             msg_id: 1,
+        }
+    }
+    pub fn get_more_logs(&mut self) {
+        let msg = LogGet::new(self.msg_id);
+        self.msg_id += 1;
+        if let Ok(msg_stringed) = serde_json::to_string(&msg) {
+            log::info!("{}", msg_stringed);
+            self.data
+                .borrow_mut()
+                .ws_sender
+                .send(WsMessage::Text(msg_stringed));
         }
     }
 }
@@ -129,32 +139,22 @@ impl super::PanelView for SocketManager {
         ui.horizontal(|ui| {
             if ui.button("Previous").clicked() {
                 log::info!("Previous");
+                if self.data.borrow().current_index > 0 {
+                    self.data.borrow_mut().current_index -= 1;
+                }
             }
             if ui.button("Next").clicked() {
                 log::info!("Next");
-                let msg = LogGet::new(self.msg_id);
-                self.msg_id += 1;
-                if let Ok(msg_stringed) = serde_json::to_string(&msg) {
-                    log::info!("{}", msg_stringed);
-                    self.ws_sender
-                        .borrow_mut()
-                        .send(WsMessage::Text(msg_stringed));
+                if self.data.borrow().events.len() > self.data.borrow().current_index + 1 {
+                    self.data.borrow_mut().current_index += 100;
+                } else {
+                    self.get_more_logs();
                 }
             }
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("Message to send:");
-                if ui.text_edit_singleline(&mut self.text_to_send).lost_focus()
-                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                {
-                    log::info!("Send message: {}", self.text_to_send);
-                    self.ws_sender
-                        .borrow_mut()
-                        .send(WsMessage::Text(std::mem::take(&mut self.text_to_send)));
-                }
-            });
-
-            ui.separator();
+            if ui.button("More").clicked() {
+                log::info!("More");
+                self.get_more_logs();
+            }
         });
     }
 }
