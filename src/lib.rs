@@ -20,6 +20,7 @@ pub struct OneLog {
     pub level: u64,          // Log level: error, warn, info or debug.
     pub dir: Option<String>, //  Log direction: UL, DL, FROM or TO.
     pub cell: Option<u64>,   // cell id
+    pub channel: Option<String>, // channels
     pub src: String,
     pub idx: u64,
 }
@@ -56,10 +57,7 @@ fn color_label(job: &mut LayoutJob, ui: &Ui, label: &str, need_color: bool) {
 }
 
 pub fn display_log(ui: &mut Ui, log: &OneLog) {
-    let mut job = LayoutJob::default();
-    if let Some(dir) = &log.dir {
-        color_label(&mut job, ui, &format!("DIR: {}", &dir), dir == "DL");
-    }
+    let job = LayoutJob::default();
     let data_type = match log.data.len() {
         0 => None,
         _ => Some(&log.data[0]),

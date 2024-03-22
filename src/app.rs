@@ -190,10 +190,11 @@ impl FrontEnd {
         let ref_data = Rc::new(RefCell::new(data));
         let mb = MessageBox::new(Rc::clone(&ref_data));
         let sm = SocketManager::new(Rc::clone(&ref_data));
+        let lc = LogicalChannels::new(Rc::clone(&ref_data));
         let wins: Vec<Box<dyn PanelController>> = vec![
             Box::<AboutPanel>::default(),
             Box::<MessageBox>::new(mb),
-            Box::<LogicalChannels>::default(),
+            Box::<LogicalChannels>::new(lc),
             Box::<SocketManager>::new(sm),
         ];
         for one_box in wins.iter() {

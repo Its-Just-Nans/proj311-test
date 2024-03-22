@@ -7,6 +7,7 @@ use std::rc::Rc;
 pub struct SocketManager {
     data: Rc<RefCell<Data>>,
     msg_id: u64,
+    layers: Layers,
 }
 
 impl SocketManager {
@@ -14,10 +15,11 @@ impl SocketManager {
         Self {
             data: ws_sender,
             msg_id: 1,
+            layers: Layers::new(),
         }
     }
     pub fn get_more_logs(&mut self) {
-        let msg = LogGet::new(self.msg_id);
+        let msg = LogGet::new(self.msg_id, self.layers.clone());
         self.msg_id += 1;
         if let Ok(msg_stringed) = serde_json::to_string(&msg) {
             log::info!("{}", msg_stringed);
@@ -51,7 +53,7 @@ impl super::PanelController for SocketManager {
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 struct Layers {
     #[serde(rename(serialize = "PHY"))]
     phy: String,
@@ -89,7 +91,7 @@ struct Layers {
 impl Layers {
     pub fn new() -> Self {
         Self {
-            phy: "warn".to_owned(),
+            phy: "debug".to_owned(),
             mac: "warn".to_owned(),
             rlc: "warn".to_owned(),
             pdcp: "warn".to_owned(),
@@ -121,12 +123,12 @@ struct LogGet {
 }
 
 impl LogGet {
-    pub fn new(id: u64) -> Self {
+    pub fn new(id: u64, layers: Layers) -> Self {
         Self {
             timeout: 1,
             min: 64,
             max: 2048,
-            layers: Layers::new(),
+            layers: layers,
             message: "log_get".to_owned(),
             headers: false,
             message_id: id,
@@ -146,7 +148,7 @@ impl super::PanelView for SocketManager {
             if ui.button("Next").clicked() {
                 log::info!("Next");
                 if self.data.borrow().events.len() > self.data.borrow().current_index + 1 {
-                    self.data.borrow_mut().current_index += 100;
+                    self.data.borrow_mut().current_index += 1;
                 } else {
                     self.get_more_logs();
                 }
@@ -156,5 +158,34 @@ impl super::PanelView for SocketManager {
                 self.get_more_logs();
             }
         });
+        ui.collapsing("Layers options", |ui| {
+            checkbox(ui, &mut self.layers.phy, "PHY");
+            checkbox(ui, &mut self.layers.mac, "MAC");
+            checkbox(ui, &mut self.layers.rlc, "RLC");
+            checkbox(ui, &mut self.layers.pdcp, "PDCP");
+            checkbox(ui, &mut self.layers.rrc, "RRC");
+            checkbox(ui, &mut self.layers.nas, "NAS");
+            checkbox(ui, &mut self.layers.s72, "S72");
+            checkbox(ui, &mut self.layers.s1ap, "S1AP");
+            checkbox(ui, &mut self.layers.ngap, "NGAP");
+            checkbox(ui, &mut self.layers.gtpu, "GTPU");
+            checkbox(ui, &mut self.layers.x2ap, "X2AP");
+            checkbox(ui, &mut self.layers.xnap, "XnAP");
+            checkbox(ui, &mut self.layers.m2ap, "M2AP");
+            checkbox(ui, &mut self.layers.lppa, "LPPa");
+            checkbox(ui, &mut self.layers.nrppa, "NRPPa");
+            checkbox(ui, &mut self.layers.trx, "TRX");
+        });
     }
+}
+
+fn checkbox(ui: &mut egui::Ui, string: &mut String, text: &str) {
+    let mut checked = string == "debug";
+    if ui.checkbox(&mut checked, text).changed() {
+        if checked {
+            *string = "debug".to_owned();
+        } else {
+            *string = "warn".to_owned();
+        };
+    };
 }
