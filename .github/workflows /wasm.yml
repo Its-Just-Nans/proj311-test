@@ -3,6 +3,8 @@ name: Wasm Actions
 on:
   push:
     branches: ["ci"]
+  pull_request:
+    branches: ["main"]
 
 jobs:
   check_wasm:
