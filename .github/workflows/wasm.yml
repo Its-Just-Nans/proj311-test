@@ -4,6 +4,9 @@ on:
     push:
         branches: ["ci"]
 
+env:
+    RUST_CHANNEL: nightly
+
 jobs:
     check_wasm:
         name: Check wasm32
@@ -18,9 +21,14 @@ jobs:
                   override: true
             - name: Set up cargo cache
               uses: Swatinem/rust-cache@v2
+            - name: Install Rust toolchain
+              run: |
+                  rustup update --no-self-update ${{ env.RUST_CHANNEL }}
+                  rustup component add --toolchain ${{ env.RUST_CHANNEL }} rustfmt rust-src
+                  rustup default ${{ env.RUST_CHANNEL }}
             - name: Check wasm32
               uses: actions-rs/cargo@v1
               with:
-                  toolchain: 1.75
+                  toolchain: ${{ env.RUST_CHANNEL }}
                   command: check
                   args: --all-features --lib --target wasm32-unknown-unknown
