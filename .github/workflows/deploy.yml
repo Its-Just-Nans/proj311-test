@@ -13,7 +13,7 @@ jobs:
         steps:
             - uses: actions/checkout@v3
             - name: Build
-              run: build_web.sh
+              run: ./build_web.sh
             - uses: taiki-e/install-action@cargo-llvm-cov
               env:
                   CARGO_LLVM_COV_TARGET_DIR: dist/coverage
