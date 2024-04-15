@@ -12,8 +12,12 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v3
+            - name: install trunk
+              run: cargo install trunk wasm-bindgen-cli
             - name: Build
-              run: ./build_web.sh
+              run: trunk build --release
+            - name: wasm opti
+              run: wasm-opt docs/${CRATE_NAME}_bg.wasm -O2 --fast-math -o docs/${CRATE_NAME}_bg.wasm
             - uses: taiki-e/install-action@cargo-llvm-cov
               env:
                   CARGO_LLVM_COV_TARGET_DIR: dist/coverage
