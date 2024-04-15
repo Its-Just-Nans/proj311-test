@@ -21,5 +21,6 @@ jobs:
             - name: Check wasm32
               uses: actions-rs/cargo@v1
               with:
+                  toolchain: 1.75
                   command: check
                   args: --all-features --lib --target wasm32-unknown-unknown
