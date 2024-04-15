@@ -19,7 +19,10 @@ jobs:
             - name: Build
               run: trunk build --release
             - name: wasm opti
-              run: wasm-opt docs/${CRATE_NAME}_bg.wasm -O2 --fast-math -o docs/${CRATE_NAME}_bg.wasm
+              run: |
+                  export NAME=$(ls -1 dist/*wasm)
+                  echo $NAME
+                  wasm-opt docs/$NAME -O2 --fast-math -o docs/$NAME
             - uses: taiki-e/install-action@cargo-llvm-cov
               env:
                   CARGO_LLVM_COV_TARGET_DIR: dist/coverage
