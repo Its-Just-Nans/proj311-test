@@ -2,7 +2,7 @@ name: Wasm Actions
 
 on:
     push:
-        branches: ["ci"]
+        branches: ["main"]
 
 env:
     RUST_CHANNEL: 1.75.0
