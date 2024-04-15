@@ -5,7 +5,7 @@ on:
         branches: ["ci"]
 
 env:
-    RUST_CHANNEL: nightly
+    RUST_CHANNEL: 1.75.0
 
 jobs:
     check_wasm:
@@ -16,7 +16,7 @@ jobs:
             - uses: actions-rs/toolchain@v1
               with:
                   profile: minimal
-                  toolchain: 1.75.0
+                  toolchain: ${{ env.RUST_CHANNEL }}
                   target: wasm32-unknown-unknown
                   override: true
             - name: Set up cargo cache
