@@ -23,6 +23,8 @@ jobs:
             - name: Build
               run: trunk build --release
             - uses: taiki-e/install-action@cargo-llvm-cov
+            - name: Run coverage
+              run: cargo llvm-cov --html --output-path dist/coverage
               env:
                   CARGO_LLVM_COV_TARGET_DIR: dist/coverage
             - name: Upload coverage artifact
