@@ -12,17 +12,12 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v3
-            - name: Set up cargo cache
-              uses: Swatinem/rust-cache@v2
             - uses: jetli/trunk-action@v0.5.0
             - uses: jetli/wasm-bindgen-action@v0.2.0
+            - name: Set up cargo cache
+              uses: Swatinem/rust-cache@v2
             - name: Build
               run: trunk build --release
-            - name: wasm opti
-              run: |
-                  export NAME=$(ls -1 dist/*wasm)
-                  echo $NAME
-                  wasm-opt docs/$NAME -O2 --fast-math -o docs/$NAME
             - uses: taiki-e/install-action@cargo-llvm-cov
               env:
                   CARGO_LLVM_COV_TARGET_DIR: dist/coverage
